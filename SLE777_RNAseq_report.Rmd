@@ -1,0 +1,2097 @@
+---
+title: "SLE777 RNA-seq analysis notebook: Weeks 3–10"
+author: "Saumya Weerakoon"
+date: "2026-08-06"
+output: html_document
+---
+
+# Week 3: Metadata and sequencing data
+
+## Introduction
+
+The purpose of this practical was to understand the metadata required for a sequencing project, access public sequencing repositories, download RNA-seq data, organise the analysis directory and obtain the reference genome and gene annotation. The commands were recorded to make the workflow reproducible.
+
+## Metadata required
+
+Sequencing files require accompanying metadata so that each sample can be interpreted correctly. Relevant metadata includes the sample identifier, treatment condition, biological replicate, organism or genotype, tissue or material sampled, collection time, growth conditions and sequencing information.
+
+Metadata should be organised with one sample per row and one variable per column. Column names should not contain spaces, and separate variables should not be combined inside one cell.
+
+## Public data access
+
+Public sequencing data can be accessed through repositories such as the European Nucleotide Archive and the NCBI Sequence Read Archive. The SRA Toolkit uses a two-stage process: `prefetch` downloads data using an accession number, and `fastq-dump` converts the downloaded SRA object into FASTQ format.
+
+```{bash, eval=FALSE}
+prefetch SRR29720776
+fastq-dump SRR29720776
+```
+
+The first command downloaded the sequencing data associated with the accession. The second converted the downloaded sequencing data into FASTQ format, which stores the read sequence and corresponding quality scores.
+
+## Download commands
+
+A structured project directory was used to keep raw data, trimmed data, alignments, quality-control reports, the reference genome, count files, scripts and reports separate.
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/Data/Raw
+cd ~/RNAseq_Analysis/Data/Raw
+
+for id in SRR10551662 SRR10551661 SRR10551660 SRR10551659 SRR10551658 SRR10551657; do
+    prefetch "$id"
+    fastq-dump "$id"
+done
+```
+
+The `mkdir -p` command created the Raw data directory. The loop processed the six yeast accessions one at a time. For each accession, `prefetch` downloaded the sequencing data and `fastq-dump` converted it into a FASTQ file.
+
+The output consisted of six sample-specific FASTQ files. These files represented raw reads and were therefore kept separately from later trimmed and aligned files.
+
+## Reference genome and annotation
+
+A reference genome was required so that the RNA-seq reads could later be aligned to genomic coordinates. A GTF annotation file was also required because it records the positions of genes and other genomic features.
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/Reference_Genome
+cd ~/RNAseq_Analysis/Reference_Genome
+
+wget https://ftp.ensembl.org/pub/release-112/fasta/saccharomyces_cerevisiae/dna/Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz
+
+gunzip Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa.gz
+
+wget https://ftp.ensembl.org/pub/release-112/gtf/saccharomyces_cerevisiae/Saccharomyces_cerevisiae.R64-1-1.112.gtf.gz
+
+gunzip Saccharomyces_cerevisiae.R64-1-1.112.gtf.gz
+```
+
+The first `wget` command downloaded the compressed yeast reference genome. `gunzip` decompressed it into FASTA format. The second download obtained the compressed GTF annotation, which was also decompressed.
+
+The important output files were:
+
+- `Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa`
+- `Saccharomyces_cerevisiae.R64-1-1.112.gtf`
+
+## Notes on raw data storage
+
+Raw sequencing files should remain unchanged so that the original data are available for verification or future reanalysis. Raw data should be kept separately from processed files and stored in a secure location with appropriate backups. Trimmed reads and alignment files are derived products and can be regenerated from the original raw reads.
+
+# Week 4: Read quality control and trimming
+
+## Aim
+
+The purpose of this practical was to assess raw-read quality using FastQC, remove low-quality bases and adapter sequences using Skewer, reassess the trimmed reads and combine the reports using MultiQC.
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/Data
+
+cp -r /home/shared/SLE777/Week4/Raw ~/RNAseq_Analysis/Data/
+
+cp -r /home/shared/SLE777/Week4/Reference_Genome ~/RNAseq_Analysis/
+```
+
+These commands created the project data directory and copied the shortened classroom FASTQ dataset and reference genome from the shared server location into the project.
+
+The original practical displayed `Data./` in one command. The path used in this report is corrected to `Data/`.
+
+## FastQC assessment of raw reads
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/QC_Reports/Raw
+cd ~/RNAseq_Analysis/Data/Raw
+
+for file in *.fastq; do
+    fastqc "$file" -o ~/RNAseq_Analysis/QC_Reports/Raw
+done
+```
+
+FastQC examined each raw FASTQ file and created an HTML report and a compressed ZIP report for every sample. The reports were written into `QC_Reports/Raw` rather than being mixed with the raw sequencing files.
+
+### Raw-read observations
+
+The raw FastQC reports showed:
+
+- Per-base sequence quality: []
+- Adapter content: []
+- Read length: []
+- GC content: []
+- Important warnings or failures: []
+
+## Read trimming using Skewer
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/Data/Trimmed
+cd ~/RNAseq_Analysis/Data/Raw
+
+for file in *.fastq; do
+    base=$(basename "$file" .fastq)
+    skewer -q 20 \
+        -o ~/RNAseq_Analysis/Data/Trimmed/"$base" \
+        "$file"
+done
+```
+
+The loop processed every raw FASTQ file. `basename` removed the `.fastq` extension and stored the sample name in the variable `base`. Skewer used a quality threshold of Q20 and created sample-specific outputs such as `SRR10551662-trimmed.fastq`.
+
+The practical displayed an extra full stop before `$(basename...)`. That full stop was not used here because it would produce incorrect or hidden output prefixes.
+
+## FastQC assessment of trimmed reads
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/QC_Reports/Trimmed
+cd ~/RNAseq_Analysis/Data/Trimmed
+
+for file in *-trimmed.fastq; do
+    fastqc "$file" -o ~/RNAseq_Analysis/QC_Reports/Trimmed
+done
+```
+
+FastQC was repeated after trimming so that raw and trimmed read quality could be compared. Separate reports were written into `QC_Reports/Trimmed`.
+
+After trimming:
+
+- Per-base quality: []
+- Adapter content: []
+- Read-length distribution: []
+- Remaining warnings or failures: []
+
+## MultiQC summary
+
+```{bash, eval=FALSE}
+cd ~/RNAseq_Analysis
+multiqc .
+```
+
+MultiQC scanned the project directory for recognised reports and combined them into one interactive file named `multiqc_report.html`. This allowed the six samples to be compared using the same plots and axes.
+
+## Quality control summary
+
+FastQC showed that the raw reads [describe your raw quality results]. The most important raw-read issues were [state the relevant warnings, adapter content or quality decline].
+
+After Skewer trimming, [state whether per-base quality improved]. Adapter content [decreased/remained similar], while the read-length distribution [became more variable/remained similar] because some reads were shortened during trimming.
+
+The most useful MultiQC panel for comparing the samples was [name of panel], because it displayed [what it allowed you to compare] for all six samples in one figure.
+
+# Week 5: Alignment and read counting
+
+## Aim
+
+The purpose of this practical was to index the yeast reference genome, align trimmed RNA-seq reads using HISAT2, convert and process alignment files with Samtools, inspect mapping statistics, visualise alignments in IGV and count reads assigned to genes using HTSeq-count.
+
+## File formats used
+
+**FASTQ:** Stores each sequencing read together with its base-quality scores.
+
+**SAM:** A human-readable alignment format describing where each read mapped.
+
+**BAM:** The compressed binary version of SAM, which requires less storage and can be processed more efficiently.
+
+**Sorted BAM:** A BAM file arranged by genomic position. Sorting is required by tools such as IGV and is used by the read-counting workflow.
+
+**BAI:** A small index associated with a sorted BAM that lets software jump directly to a specific genomic region.
+
+**GTF:** A gene-annotation file containing the genomic coordinates of genes and other features.
+
+**Count file:** A text table reporting how many reads were assigned to each gene.
+
+## Reference genome indexing
+
+```{bash, eval=FALSE}
+cd ~/RNAseq_Analysis/Reference_Genome
+
+hisat2-build \
+    Saccharomyces_cerevisiae.R64-1-1.dna.toplevel.fa \
+    saccharomyces_hisat2_index
+```
+
+`hisat2-build` converted the reference FASTA into a reusable HISAT2 index. The first argument was the reference genome, while `saccharomyces_hisat2_index` was the shared prefix assigned to the index files.
+
+## Alignment using HISAT2
+
+```{bash, eval=FALSE}
+cd ~/RNAseq_Analysis/Data
+mkdir -p Aligned
+
+for file in ./Trimmed/*-trimmed.fastq; do
+    base=$(basename "$file" -trimmed.fastq)
+
+    hisat2 \
+        -x ../Reference_Genome/saccharomyces_hisat2_index \
+        -U "$file" \
+        -S "./Aligned/${base}.sam"
+done
+```
+
+The loop aligned each single-end trimmed FASTQ file against the indexed yeast genome. `-x` specified the index prefix, `-U` supplied the single-end reads and `-S` specified the SAM output. One SAM file was created for each sample.
+
+## SAM-to-BAM conversion, sorting and indexing
+
+```{bash, eval=FALSE}
+cd ~/RNAseq_Analysis/Data/Aligned
+
+for file in *.sam; do
+    base=$(basename "$file" .sam)
+
+    samtools view -b "$file" -o "${base}.bam"
+    samtools sort "${base}.bam" -o "${base}_sorted.bam"
+    samtools index "${base}_sorted.bam"
+    samtools flagstat "${base}_sorted.bam" > "${base}_flagstat.txt"
+done
+```
+
+For each sample, `samtools view` converted the SAM file to BAM, `samtools sort` arranged the BAM by genomic coordinate, and `samtools index` produced the matching `.bai` index. `samtools flagstat` wrote a mapping summary into a sample-specific text file.
+
+### Troubleshooting an incomplete SAM file
+
+During processing, Samtools reported a parsing error for `SRR10551659.sam`. Inspection using `ls -lh` showed that this SAM file was substantially smaller than the others. The final record contained only the read identifier and FLAG field rather than the complete set of SAM fields, indicating that the file had been truncated.
+
+The incomplete SAM and partial downstream outputs were removed. HISAT2 was rerun for `SRR10551659`, after which the BAM conversion, sorting, indexing and flagstat commands completed successfully.
+
+```{bash, eval=FALSE}
+cd ~/RNAseq_Analysis/Data/Aligned
+
+rm -f SRR10551659.sam
+rm -f SRR10551659.bam
+rm -f SRR10551659_sorted.bam
+rm -f SRR10551659_sorted.bam.bai
+rm -f SRR10551659_flagstat.txt
+
+cd ~/RNAseq_Analysis/Data
+
+hisat2 \
+    -x ../Reference_Genome/saccharomyces_hisat2_index \
+    -U Trimmed/SRR10551659-trimmed.fastq \
+    -S Aligned/SRR10551659.sam
+
+cd ~/RNAseq_Analysis/Data/Aligned
+
+samtools view -b SRR10551659.sam -o SRR10551659.bam
+samtools sort SRR10551659.bam -o SRR10551659_sorted.bam
+samtools index SRR10551659_sorted.bam
+samtools flagstat SRR10551659_sorted.bam > SRR10551659_flagstat.txt
+```
+
+The regenerated sample contained 249,385 primary reads, of which 238,674 were mapped, giving a primary mapping rate of 95.71%. Six sorted BAM files, six BAM indexes and six flagstat reports were present after the correction.
+
+## Alignment statistics
+
+The headline statistic in each flagstat report was the mapped percentage. A high primary mapping percentage indicated that most reads were successfully aligned to the yeast reference genome.
+
+The paired-read fields were zero because the sequencing files used in this workflow were single-end rather than paired-end. Secondary alignments represented additional valid locations reported for some reads that could map to more than one genomic region.
+
+## IGV visualisation
+
+The sorted BAM and matching `.bai` index are required for alignment visualisation in IGV. The `saccharomyces_cerevisiae` genome will be selected, and a sorted BAM will be loaded to inspect read coverage and individual alignments.
+
+**Status:** To be completed after transferring the BAM and BAI files and loading them into IGV.
+
+## Gene-level read counting
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/Counts
+cd ~/RNAseq_Analysis/Counts
+
+for file in ../Data/Aligned/*_sorted.bam; do
+    base=$(basename "$file" _sorted.bam)
+
+    htseq-count \
+        -f bam \
+        -r pos \
+        -s no \
+        "$file" \
+        ../Reference_Genome/Saccharomyces_cerevisiae.R64-1-1.112.gtf \
+        > "${base}_counts.txt"
+done
+```
+
+HTSeq-count compared each position-sorted BAM file with the GTF annotation. `-f bam` identified the input format, `-r pos` stated that the reads were sorted by genomic position, and `-s no` specified that the library was treated as unstranded. One count table was produced for each sample.
+
+```{bash, eval=FALSE}
+head SRR10551662_counts.txt
+
+grep ACTUAL_GENE_ID SRR10551662_counts.txt
+```
+
+Two example genes were inspected:
+
+1. `[gene identifier]` had a read count of `[count]`.
+2. `[gene identifier]` had a read count of `[count]`.
+
+The lines beginning with double underscores, such as `__no_feature` and `__alignment_not_unique`, were HTSeq summary categories rather than gene identifiers.
+
+## Comprehensive MultiQC report
+
+```{bash, eval=FALSE}
+cd ~/RNAseq_Analysis
+multiqc .
+```
+
+The final MultiQC command scanned the complete project and aggregated recognised outputs from FastQC, HISAT2, Samtools and HTSeq. The resulting `multiqc_report.html` provided an overview of read quality, alignment performance and counting statistics.
+
+## Pipeline automation
+
+```{bash, eval=FALSE}
+mkdir -p ~/RNAseq_Analysis/Scripts
+cd ~/RNAseq_Analysis/Scripts
+
+nano RNA_seq.sh
+
+chmod +x RNA_seq.sh
+time ./RNA_seq.sh |& tee ../run_my_script.log
+```
+
+The pipeline commands were consolidated into `RNA_seq.sh`. `chmod +x` made the script executable. `time` measured the runtime, while `tee` displayed the terminal output and also recorded normal output and errors in `run_my_script.log`.
+
+## Reflection on AI-generated scripting
+
+The AI-generated pipeline used many of the same major tools, including FastQC, trimming software, HISAT2, Samtools, HTSeq-count and MultiQC. However, its first version required adjustment to match the project directory structure, input filenames and output naming conventions used in this practical.
+
+The main advantage of the manually developed workflow was that every command had already been tested individually. The AI-generated version was useful for consolidating the commands, but its paths and assumptions had to be checked before execution.
+
+# Week 6: Introduction to R using gene expression count data
+
+## Aim
+
+The aim of this practical was to learn the basics of R using one HTSeq-count file. The analysis involved reading a gene count file into R, inspecting its structure, removing HTSeq summary rows, calculating summary statistics, identifying low- and high-count genes, and visualising the distribution of gene expression counts.
+
+## Basic R objects
+
+The first step was to create simple R objects containing a sample name, condition and replicate number.
+
+```{r}
+sample_name <- "SRR10551662"
+condition <- "10Days"
+replicate_number <- 1
+
+sample_name
+condition
+replicate_number
+```
+
+The class of each object was then checked.
+
+```{r}
+class(sample_name)
+class(condition)
+class(replicate_number)
+```
+
+The sample name and condition were stored as character values, while the replicate number was numeric.
+
+## Locating the count files
+
+The shared directory containing the Week 6 count files was stored in an R object.
+
+```{r}
+counts_dir <- "/home/shared/counts"
+counts_dir
+```
+
+The files in this directory were listed.
+
+```{r}
+count_files <- list.files(counts_dir)
+count_files
+```
+
+The structure, class and number of files were checked.
+
+```{r}
+str(count_files)
+class(count_files)
+length(count_files)
+```
+
+There were six count files in the directory.
+
+## Selecting and reading the first count file
+
+The first filename was selected from the vector of count files.
+
+```{r}
+first_file_name <- count_files[1]
+first_file_name
+```
+
+A full file path was created using `file.path()`.
+
+```{r}
+first_file_path <- file.path(counts_dir, count_files[1])
+first_file_path
+```
+
+The first count file was then read into R.
+
+```{r}
+gene_counts <- read.table(
+  first_file_path,
+  header = FALSE,
+  col.names = c("gene_id", "count")
+)
+```
+
+The first few rows were inspected.
+
+```{r}
+head(gene_counts)
+```
+
+The structure and dimensions of the data frame were checked.
+
+```{r}
+str(gene_counts)
+dim(gene_counts)
+```
+
+The data frame contained 7,132 rows and two columns. The `gene_id` column contained character values and the `count` column contained integer values.
+
+## Inspecting the count table
+
+The first few values from each column were inspected.
+
+```{r}
+head(gene_counts$gene_id)
+head(gene_counts$count)
+
+class(gene_counts$gene_id)
+class(gene_counts$count)
+```
+
+The gene identifiers were stored as character values, while the read counts were stored as integers.
+
+## Removing HTSeq-count summary rows
+
+HTSeq-count files contain summary rows beginning with double underscores. These rows are useful for quality control but are not individual genes, so they were separated from the gene-level data.
+
+```{r}
+summary_rows <- grepl("^__", gene_counts$gene_id)
+
+head(summary_rows)
+tail(summary_rows)
+```
+
+The gene rows and summary rows were then stored separately.
+
+```{r}
+gene_counts_only <- gene_counts[!summary_rows, ]
+htseq_summary <- gene_counts[summary_rows, ]
+
+head(gene_counts_only)
+htseq_summary
+```
+
+The HTSeq summary rows included categories such as `__no_feature`, `__ambiguous`, `__too_low_aQual`, `__not_aligned` and `__alignment_not_unique`.
+
+## Summary statistics
+
+The number of gene rows was calculated.
+
+```{r}
+nrow(gene_counts_only)
+```
+
+The cleaned table contained 7,127 genes.
+
+The total number of reads assigned to genes was calculated.
+
+```{r}
+sum(gene_counts_only$count)
+```
+
+The total number of reads assigned to genes was 1,168,450.
+
+The mean, median and maximum gene counts were calculated.
+
+```{r}
+mean(gene_counts_only$count)
+median(gene_counts_only$count)
+max(gene_counts_only$count)
+summary(gene_counts_only$count)
+```
+
+The mean count was approximately 163.95, while the median count was 47. The maximum count was 222,714. The mean was much higher than the median, indicating that the distribution was strongly right-skewed.
+
+## Zero, low and high count genes
+
+The number of genes with different count thresholds was calculated.
+
+```{r}
+sum(gene_counts_only$count == 0)
+sum(gene_counts_only$count >= 10)
+sum(gene_counts_only$count >= 100)
+sum(gene_counts_only$count >= 1000)
+```
+
+The results were:
+
+- 785 genes had zero reads.
+- 5,618 genes had at least 10 reads.
+- 1,819 genes had at least 100 reads.
+- 95 genes had at least 1,000 reads.
+
+## Subsetting genes
+
+Genes with at least 10 reads were stored in a new data frame.
+
+```{r}
+expressed_genes <- gene_counts_only[
+  gene_counts_only$count >= 10,
+]
+
+head(expressed_genes)
+nrow(expressed_genes)
+```
+
+Genes with zero reads were also stored separately.
+
+```{r}
+zero_count_genes <- gene_counts_only[
+  gene_counts_only$count == 0,
+]
+
+head(zero_count_genes)
+nrow(zero_count_genes)
+```
+
+Genes with at least 1,000 reads were stored as high-count genes.
+
+```{r}
+high_count_genes <- gene_counts_only[
+  gene_counts_only$count >= 1000,
+]
+
+head(high_count_genes)
+nrow(high_count_genes)
+```
+
+## Sorting genes by read count
+
+The genes were sorted from highest to lowest count.
+
+Because the original nested command caused an RStudio session error, the sorting operation was performed in two steps.
+
+```{r}
+idx <- order(gene_counts_only$count, decreasing = TRUE)
+
+ordered_genes <- gene_counts_only[idx, ]
+
+head(ordered_genes)
+```
+
+The most highly expressed genes included `Q0158` and `Q0020`, with counts of 222,714 and 165,998 respectively.
+
+## Top 10 and top 20 genes
+
+The 10 and 20 genes with the highest counts were selected.
+
+```{r}
+top10_genes <- ordered_genes[1:10, ]
+top10_genes
+
+top20_genes <- ordered_genes[1:20, ]
+top20_genes
+```
+
+## Raw count distribution
+
+A histogram of the raw read counts was created.
+
+```{r}
+hist(gene_counts_only$count)
+```
+
+The raw histogram was strongly right-skewed because a small number of genes had extremely large counts compared with most other genes.
+
+## Log-transformed count distribution
+
+A log-transformed count column was created using `log10(count + 1)`.
+
+```{r}
+gene_counts_only$log10_count <- log10(
+  gene_counts_only$count + 1
+)
+
+head(gene_counts_only$log10_count)
+```
+
+The `+1` was used because some genes had zero counts and `log10(0)` is undefined.
+
+A histogram of the transformed counts was then produced.
+
+```{r}
+hist(
+  gene_counts_only$log10_count,
+  xlab = "log10(count + 1)",
+  ylab = "Number of genes",
+  main = "Distribution of gene expression counts"
+)
+```
+
+The log transformation made the distribution easier to visualise by reducing the effect of the extremely high-count genes.
+
+## Visualisation using ggplot2
+
+The `ggplot2` package was loaded.
+
+```{r}
+library(ggplot2)
+```
+
+A histogram of the log-transformed counts was created using `ggplot2`.
+
+```{r}
+ggplot(gene_counts_only, aes(x = log10_count)) +
+  geom_histogram(bins = 50) +
+  labs(
+    title = "Distribution of gene expression counts",
+    x = "log10(count + 1)",
+    y = "Number of genes"
+  )
+```
+
+## Top 20 most highly expressed genes
+
+A bar plot was created for the top 20 genes.
+
+```{r}
+ggplot(
+  top20_genes,
+  aes(x = reorder(gene_id, count), y = count)
+) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Top 20 most highly expressed genes",
+    x = "Gene ID",
+    y = "Read count"
+  )
+```
+
+The plot showed that `Q0158` and `Q0020` had much larger counts than the other genes in the top 20.
+
+## Gene of interest
+
+The gene `YDR070C` was selected as a gene of interest.
+
+```{r}
+gene_of_interest <- "YDR070C"
+
+selected_gene <- gene_counts_only[
+  gene_counts_only$gene_id == gene_of_interest,
+]
+
+selected_gene
+```
+
+`YDR070C` had a read count of 98 in this sample.
+
+## Selecting a gene from the top 20 list
+
+The first gene in the top 20 list was selected.
+
+```{r}
+top20_genes$gene_id
+
+my_gene <- top20_genes$gene_id[1]
+
+my_gene_counts <- gene_counts_only[
+  gene_counts_only$gene_id == my_gene,
+]
+
+my_gene_counts
+```
+
+The selected gene was `Q0158`, with a read count of 222,714.
+
+## Saving outputs
+
+A results directory was created.
+
+```{r}
+dir.create(
+  "Week6_results",
+  showWarnings = FALSE
+)
+```
+
+The top 20 genes were saved as a CSV file.
+
+```{r}
+write.csv(
+  top20_genes,
+  file = "Week6_results/top20_genes_first_sample.csv",
+  row.names = FALSE
+)
+```
+
+The cleaned gene count table was also saved.
+
+```{r}
+write.csv(
+  gene_counts_only,
+  file = "Week6_results/cleaned_gene_counts_first_sample.csv",
+  row.names = FALSE
+)
+```
+
+The top-20 gene-expression plot was saved.
+
+```{r}
+ggsave(
+  filename = "Week6_results/top20_gene_expression_plot.png",
+  width = 7,
+  height = 5
+)
+```
+
+The saved files were checked.
+
+```{r}
+list.files("Week6_results")
+```
+
+Three output files were created successfully.
+
+## Interpretation
+
+The gene count data show that expression levels varied greatly between genes in this sample. The mean read count was substantially higher than the median, indicating a strongly right-skewed distribution caused by a small number of highly expressed genes. Most genes had relatively low-to-moderate counts, while only a small number had counts greater than or equal to 1,000.
+
+## Session information
+
+The R session information was recorded at the end of the analysis.
+
+```{r}
+sessionInfo()
+```
+
+## Week 7: Building a count matrix and sample metadata
+
+In Week 7, six HTSeq count files were combined into a single count matrix. Sample metadata were also created and checked to ensure that the sample names matched the count matrix.
+
+```{r week7_setup}
+count_dir <- "/home/shared/counts"
+
+count_files <- list.files(
+  path = count_dir,
+  pattern = "\\.txt$",
+  full.names = FALSE
+)
+
+count_files
+length(count_files)
+
+sample_ids <- gsub("\\.txt$", "", count_files)
+sample_ids
+```
+
+### Sample metadata
+
+A metadata table was created for the six samples, including the experimental condition, age in days, and replicate number.
+
+```{r week7_metadata}
+sample_metadata <- data.frame(
+  sample_id = c("SRR10551660", "SRR10551661", "SRR10551662",
+                "SRR10551663", "SRR10551664", "SRR10551665"),
+  condition = c("thin", "thin", "thin",
+                "early", "early", "early"),
+  age_days  = c(45, 45, 45, 10, 10, 10),
+  replicate = c(3, 2, 1, 3, 2, 1)
+)
+
+sample_metadata$condition <- factor(
+  sample_metadata$condition,
+  levels = c("early", "thin")
+)
+
+rownames(sample_metadata) <- sample_metadata$sample_id
+
+sample_metadata
+```
+
+### Checking sample IDs
+
+The sample IDs derived from the count filenames were compared with the metadata to confirm that all six samples were represented correctly.
+
+```{r week7_sample_check}
+sample_ids %in% sample_metadata$sample_id
+all(sample_ids %in% sample_metadata$sample_id)
+```
+
+### Reading the count files
+
+Full file paths were created for the six HTSeq count files. The first file was then read into R to initialise the count table before the remaining samples were merged.
+
+```{r week7_read_counts}
+count_paths <- file.path(count_dir, count_files)
+
+count_paths
+
+counts_table <- read.table(
+  count_paths[1],
+  header = FALSE,
+  col.names = c("gene_id", sample_ids[1])
+)
+
+head(counts_table)
+```
+
+### Merging count files
+
+The remaining HTSeq count files were read one at a time and merged by gene ID to produce a single table containing all six samples.
+
+```{r week7_merge_counts}
+for (i in 2:length(count_paths)) {
+
+  one_sample <- read.table(
+    count_paths[i],
+    header = FALSE,
+    col.names = c("gene_id", sample_ids[i])
+  )
+
+  counts_table <- merge(counts_table, one_sample, by = "gene_id")
+}
+
+dim(counts_table)
+colnames(counts_table)
+```
+
+### Removing HTSeq summary rows
+
+HTSeq includes several summary rows that describe reads that were ambiguous, unaligned, low quality, or not assigned to annotated genes. These rows were removed so that only gene-level counts remained.
+
+```{r week7_remove_summary}
+is_summary <- grepl("^__", counts_table$gene_id)
+
+sum(is_summary)
+counts_table$gene_id[is_summary]
+
+gene_table <- counts_table[!is_summary, ]
+
+dim(counts_table)
+dim(gene_table)
+```
+
+### Creating the count matrix
+
+The gene identifiers were stored separately, and the remaining six sample columns were converted into a numeric matrix. Gene IDs were then assigned as row names.
+
+```{r week7_count_matrix}
+gene_ids <- gene_table$gene_id
+
+count_matrix <- as.matrix(
+  gene_table[1:nrow(gene_table), -1]
+)
+
+rownames(count_matrix) <- gene_ids
+
+dim(count_matrix)
+class(count_matrix)
+```
+
+### Checking sample order
+
+The count matrix column names were compared with the metadata row names to confirm that the same six samples were present and in the same order.
+
+```{r week7_order_check}
+colnames(count_matrix)
+rownames(sample_metadata)
+
+all(rownames(sample_metadata) %in% colnames(count_matrix))
+identical(colnames(count_matrix), rownames(sample_metadata))
+
+stopifnot(
+  identical(colnames(count_matrix), rownames(sample_metadata))
+)
+```
+
+### Calculating library sizes
+
+The total number of assigned reads was calculated for each sample by summing the counts in each column of the count matrix.
+
+```{r week7_library_sizes}
+library_sizes <- colSums(count_matrix)
+
+library_sizes
+
+dir.create("Week7_results", showWarnings = FALSE)
+
+write.csv(
+  count_matrix,
+  file = "Week7_results/count_matrix.csv",
+  row.names = TRUE
+)
+
+write.csv(
+  sample_metadata,
+  file = "Week7_results/sample_metadata.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  count_matrix,
+  file = "Week7_results/count_matrix.rds"
+)
+
+saveRDS(
+  sample_metadata,
+  file = "Week7_results/sample_metadata.rds"
+)
+
+test_matrix <- readRDS("Week7_results/count_matrix.rds")
+
+identical(test_matrix, count_matrix)
+
+sessionInfo()
+
+```
+
+## Week 8: Normalisation and exploring the experiment
+
+In Week 8, the Week 7 count matrix and sample metadata were reloaded and used to normalise the RNA-seq data. Low-count genes were filtered, the normalised data were log2-transformed, and principal component analysis (PCA) was used to explore whether the two biofilm stages separated.
+
+### Loading Week 7 results
+
+The count matrix and sample metadata saved in Week 7 were reloaded and inspected before continuing the analysis.
+
+```{r week8_load}
+library(ggplot2)
+
+count_matrix <- readRDS("Week7_results/count_matrix.rds")
+sample_metadata <- readRDS("Week7_results/sample_metadata.rds")
+
+dim(count_matrix)
+head(count_matrix)
+sample_metadata
+```
+
+### Library sizes
+
+Library sizes were calculated to determine the total number of assigned reads in each sample.
+
+```{r week8_library_sizes}
+library_sizes <- colSums(count_matrix)
+
+round(library_sizes / 1e6, 2)
+```
+
+The six samples had different library sizes, ranging from approximately 0.44 to 1.17 million assigned reads. This showed why raw counts could not be compared directly between samples without normalisation.
+
+### Counts per million normalisation
+
+Counts per million (CPM) were calculated for each sample by dividing each gene count by the sample library size and multiplying by one million.
+
+```{r week8_cpm}
+cpm <- count_matrix
+
+for (i in 1:ncol(count_matrix)) {
+  cpm[1:nrow(cpm), i] <-
+    count_matrix[1:nrow(count_matrix), i] / library_sizes[i] * 1e6
+}
+
+dim(cpm)
+head(cpm)
+
+colSums(cpm)
+```
+
+All six CPM columns summed to one million, confirming that the normalisation had worked correctly.
+
+### Filtering low-count genes
+
+Genes were retained if they had a CPM greater than 1 in at least three samples.
+
+```{r week8_filter}
+keep <- rowSums(cpm > 1) >= 3
+
+table(keep)
+
+counts_filtered <- count_matrix[keep, ]
+cpm_filtered <- cpm[keep, ]
+
+dim(count_matrix)
+dim(counts_filtered)
+```
+
+The original dataset contained 7,127 genes. After filtering, 6,341 genes remained and 786 genes were removed, corresponding to approximately 11.0% of the original gene set. The filtered raw counts were retained because DESeq2 uses raw count data rather than CPM values.
+
+### Log2 transformation
+
+The filtered CPM values were transformed using log2(CPM + 1) to reduce the influence of highly expressed genes and make the data easier to visualise.
+
+```{r week8_log_transform}
+log_cpm <- log2(cpm_filtered + 1)
+
+dim(log_cpm)
+head(log_cpm)
+
+max(log_cpm)
+2^(max(log_cpm) - 3)
+```
+
+The largest log2(CPM + 1) value was approximately 17.54. This corresponds to roughly 23,826 times greater expression than a gene with a log-CPM value of 3.
+
+### Checking normalisation
+
+The expression distributions were compared before and after normalisation using boxplots.
+
+```{r week8_before_normalisation}
+boxplot(
+  log2(counts_filtered + 1),
+  las = 2,
+  ylab = "log2(count + 1)",
+  main = "Before normalisation"
+)
+```
+
+```{r week8_after_normalisation}
+boxplot(
+  log_cpm,
+  las = 2,
+  ylab = "log2(CPM + 1)",
+  main = "After normalisation"
+)
+```
+
+Before normalisation, the sample distributions differed in height and reflected differences in sequencing depth. After CPM normalisation, the distributions were more closely aligned, showing that the sequencing-depth effect had been reduced.
+
+### Principal component analysis
+
+The log-CPM matrix was transposed so that the six samples were treated as observations before PCA was performed.
+
+```{r week8_pca}
+dim(log_cpm)
+dim(t(log_cpm))
+
+pca <- prcomp(t(log_cpm))
+
+dim(pca$x)
+rownames(pca$x)
+```
+
+The PCA output contained six rows, confirming that the six samples were analysed as observations.
+
+The percentage of variance explained by each principal component was calculated.
+
+```{r week8_variance}
+percent_var <- round(
+  100 * pca$sdev^2 / sum(pca$sdev^2),
+  1
+)
+
+percent_var[1:4]
+```
+
+PC1 explained 57.5% of the total variance and PC2 explained 23.7%. Together, the first two principal components explained 81.2% of the variation between samples.
+
+### Preparing PCA data for plotting
+
+The first two principal component coordinates were combined with the sample metadata.
+
+```{r week8_pca_dataframe}
+pca_df <- data.frame(
+  sample_id = rownames(pca$x),
+  PC1 = pca$x[1:nrow(pca$x), 1],
+  PC2 = pca$x[1:nrow(pca$x), 2]
+)
+
+pca_df <- merge(
+  pca_df,
+  sample_metadata,
+  by = "sample_id"
+)
+
+pca_df
+```
+
+### PCA figure
+
+A PCA plot was created using ggplot2, with the experimental condition mapped to colour.
+
+```{r week8_pca_plot}
+p_pca <- ggplot(
+  pca_df,
+  aes(x = PC1, y = PC2, colour = condition)
+) +
+  geom_point(size = 4) +
+  scale_colour_manual(
+    values = c(
+      "early" = "#66c2a5",
+      "thin" = "#fc8d62"
+    )
+  ) +
+  labs(
+    title = "PCA of normalised expression",
+    x = paste0(
+      "PC1 (",
+      percent_var[1],
+      "% variance)"
+    ),
+    y = paste0(
+      "PC2 (",
+      percent_var[2],
+      "% variance)"
+    ),
+    colour = "Stage"
+  ) +
+  theme_bw()
+
+p_pca
+```
+
+The PCA showed clear separation between the early and thin samples along PC1. All thin samples had negative PC1 scores, while all early samples had positive PC1 scores. This indicates that biofilm stage was a major source of variation in the experiment.
+
+The sample identifiers were also added to the PCA figure.
+
+```{r week8_pca_labels}
+p_pca +
+  geom_text(
+    aes(label = sample_id),
+    vjust = -1.2,
+    size = 3,
+    show.legend = FALSE
+  )
+```
+
+### Saving Week 8 results
+
+The PCA figure and the processed expression objects were saved for later analysis.
+
+```{r week8_save_results}
+dir.create(
+  "Week8_results",
+  showWarnings = FALSE
+)
+
+ggsave(
+  filename = "Week8_results/pca_plot.png",
+  plot = p_pca,
+  width = 6,
+  height = 5,
+  dpi = 300
+)
+
+saveRDS(
+  counts_filtered,
+  "Week8_results/counts_filtered.rds"
+)
+
+saveRDS(
+  log_cpm,
+  "Week8_results/log_cpm.rds"
+)
+
+saveRDS(
+  sample_metadata,
+  "Week8_results/sample_metadata.rds"
+)
+
+write.csv(
+  round(log_cpm, 3),
+  "Week8_results/log_cpm.csv",
+  row.names = TRUE
+)
+```
+
+The filtered raw counts were saved for differential expression analysis in Week 9, while the log-CPM matrix was retained for plotting and exploratory analysis.
+
+### Session information
+
+The R session information was recorded at the end of the analysis.
+
+```{r week8_session_info}
+sessionInfo()
+```
+
+## Week 9: Differential expression with DESeq2
+
+In Week 9, differential expression analysis was performed using DESeq2 to identify genes that changed between the early biofilm and thin biofilm stages. DESeq2 models raw count data directly, estimates sequencing depth and gene-specific variability, and adjusts for testing thousands of genes at once. 
+
+### Loading Week 8 results
+
+The filtered raw count matrix and sample metadata from Week 8 were loaded and checked before analysis.
+
+```{r week9_load}
+library(DESeq2)
+library(ggplot2)
+
+counts_filtered <- readRDS("Week8_results/counts_filtered.rds")
+sample_metadata <- readRDS("Week8_results/sample_metadata.rds")
+
+dim(counts_filtered)
+head(counts_filtered)
+sample_metadata
+
+stopifnot(
+  all(colnames(counts_filtered) == sample_metadata$sample_id)
+)
+```
+
+The filtered dataset contained 6,341 genes across six samples, with three early and three thin biofilm replicates. The sample order matched the metadata, allowing the DESeq2 analysis to continue safely.
+
+### Building the DESeq2 dataset
+
+The count matrix, sample metadata and experimental design were combined into a `DESeqDataSet`.
+
+```{r week9_dds}
+dds <- DESeqDataSetFromMatrix(
+  countData = counts_filtered,
+  colData = sample_metadata,
+  design = ~ condition
+)
+
+dds
+
+levels(dds$condition)
+```
+
+The factor levels were `"early"` and `"thin"`, with `early` as the reference level. Therefore, positive log2 fold changes represent higher expression in the thin biofilm relative to the early biofilm.
+
+### Size factor normalisation
+
+DESeq2 size factors were estimated to adjust for differences in sequencing depth between samples.
+
+```{r week9_size_factors}
+dds <- estimateSizeFactors(dds)
+
+sizeFactors(dds)
+
+library_sizes <- colSums(counts_filtered)
+
+round(
+  library_sizes / mean(library_sizes),
+  3
+)
+
+round(
+  sizeFactors(dds),
+  3
+)
+```
+
+The DESeq2 size factors were similar to, but not identical to, simple library-size ratios because DESeq2 uses a median-of-ratios method that is more robust to highly expressed genes. 
+
+The normalised counts were also inspected.
+
+```{r week9_normalised_counts}
+norm_counts <- counts(
+  dds,
+  normalized = TRUE
+)
+
+head(
+  round(norm_counts, 1)
+)
+```
+
+### Dispersion estimation
+
+Gene-wise dispersions were estimated to measure variability between replicates, and the fitted dispersion trend was inspected.
+
+```{r week9_dispersion}
+dds <- estimateDispersions(dds)
+
+plotDispEsts(dds)
+```
+
+The dispersion plot showed gene-wise estimates around a fitted trend, with final shrunken estimates used for downstream testing. 
+
+### Running the DESeq2 model
+
+The full DESeq2 pipeline was then run to fit the model and perform differential expression testing.
+
+```{r week9_deseq}
+dds <- DESeq(dds)
+```
+
+### Extracting the thin versus early comparison
+
+The comparison of interest was thin biofilm versus early biofilm.
+
+```{r week9_results}
+levels(dds$condition)
+
+res <- results(
+  dds,
+  contrast = c(
+    "condition",
+    "thin",
+    "early"
+  )
+)
+
+res
+
+mcols(res)$description
+summary(res)
+```
+
+The contrast was correctly specified as thin versus early, so positive log2 fold changes indicate higher expression in the thin biofilm and negative values indicate higher expression in the early biofilm. 
+
+### Raw and adjusted p-values
+
+The number of genes meeting a raw p-value threshold was compared with the number meeting the multiple-testing-adjusted threshold.
+
+```{r week9_pvalues}
+sum(
+  res$pvalue < 0.05,
+  na.rm = TRUE
+)
+
+sum(
+  res$padj < 0.05,
+  na.rm = TRUE
+)
+```
+
+There were 2,123 genes with a raw p-value below 0.05, compared with 1,493 genes with an adjusted p-value below 0.05. The adjusted p-value was used for gene-list filtering because it controls the false discovery rate across thousands of tests. 
+
+### Raw p-value distribution
+
+The distribution of raw p-values was visualised as a histogram.
+
+```{r week9_pvalue_histogram}
+res_raw_df <- as.data.frame(res)
+
+ggplot(
+  res_raw_df,
+  aes(x = pvalue)
+) +
+  geom_histogram(
+    binwidth = 0.02,
+    boundary = 0
+  ) +
+  labs(
+    title = "Distribution of raw p-values",
+    x = "p-value",
+    y = "Number of genes"
+  ) +
+  theme_bw()
+```
+
+The histogram showed a strong spike near zero and a flatter distribution across the remainder of the range, consistent with a mixture of genuinely changing and unchanged genes. 
+
+### MA plot before shrinkage
+
+An MA plot was used to examine the relationship between expression level and log2 fold change.
+
+```{r week9_ma_before}
+plotMA(
+  res,
+  ylim = c(-6, 6),
+  main = "Before shrinkage"
+)
+```
+
+Low-expression genes showed more extreme fold changes, producing a funnel-shaped pattern. 
+
+### Fold-change shrinkage
+
+The coefficient name was checked before applying shrinkage.
+
+```{r week9_shrinkage}
+resultsNames(dds)
+
+res_shrunk <- lfcShrink(
+  dds,
+  coef = "condition_thin_vs_early",
+  type = "apeglm"
+)
+
+plotMA(
+  res_shrunk,
+  ylim = c(-6, 6),
+  main = "After shrinkage"
+)
+```
+
+Shrinkage reduced extreme fold-change estimates for low-count genes while leaving stronger, well-supported effects relatively unchanged. 
+
+### Preparing the ranked results table
+
+The shrunken results were converted to a data frame, gene identifiers were added, rows with missing adjusted p-values were removed, and the results were sorted by adjusted p-value.
+
+```{r week9_ranked_results}
+res_df <- as.data.frame(res_shrunk)
+
+res_df$gene_id <- rownames(res_shrunk)
+
+res_df <- res_df[
+  1:nrow(res_df),
+  c(
+    "gene_id",
+    "baseMean",
+    "log2FoldChange",
+    "lfcSE",
+    "pvalue",
+    "padj"
+  )
+]
+
+keep_rows <- which(
+  !is.na(res_df$padj)
+)
+
+res_df <- res_df[
+  keep_rows,
+  1:ncol(res_df)
+]
+
+sort_rows <- order(
+  res_df$padj
+)
+
+res_df <- res_df[
+  sort_rows,
+  1:ncol(res_df)
+]
+
+head(
+  res_df,
+  10
+)
+```
+
+### Significant genes
+
+Genes were classified as significant if they had an adjusted p-value below 0.05 and an absolute log2 fold change greater than 1.
+
+```{r week9_significant_genes}
+sig_genes <- res_df[
+  res_df$padj < 0.05 &
+  abs(res_df$log2FoldChange) > 1,
+  1:ncol(res_df)
+]
+
+nrow(sig_genes)
+head(sig_genes)
+```
+
+A total of **826 genes** met both thresholds. 
+
+The significant genes were then separated by direction.
+
+```{r week9_direction}
+up_in_thin <- sig_genes[
+  sig_genes$log2FoldChange > 0,
+  1:ncol(sig_genes)
+]
+
+down_in_thin <- sig_genes[
+  sig_genes$log2FoldChange < 0,
+  1:ncol(sig_genes)
+]
+
+nrow(up_in_thin)
+nrow(down_in_thin)
+```
+
+Of the 826 significant genes, **443 were higher in the thin biofilm** and **383 were lower in thin**, meaning they were higher in the early biofilm. 
+
+### Untested and stricter gene sets
+
+The number of genes with missing adjusted p-values was counted.
+
+```{r week9_untested}
+sum(
+  is.na(res$padj)
+)
+```
+
+DESeq2 left **246 genes** without an adjusted p-value.
+
+A stricter gene set was also created using `padj < 0.01` and an absolute log2 fold change greater than 2.
+
+```{r week9_strict_genes}
+strict_genes <- res_df[
+  res_df$padj < 0.01 &
+  abs(res_df$log2FoldChange) > 2,
+  1:ncol(res_df)
+]
+
+nrow(strict_genes)
+```
+
+A total of **149 genes** met these stricter criteria, corresponding to at least a fourfold change. 
+
+### Checking the top gene
+
+The most significant gene was selected and its normalised counts were plotted.
+
+```{r week9_top_gene}
+top_gene <- res_df$gene_id[1]
+
+top_gene
+
+plotCounts(
+  dds,
+  gene = top_gene,
+  intgroup = "condition"
+)
+```
+
+The top-ranked gene was `YGR087C`, and its normalised counts clearly separated the early and thin samples. 
+
+A ggplot2 version was also created.
+
+```{r week9_top_gene_ggplot}
+gene_counts <- plotCounts(
+  dds,
+  gene = top_gene,
+  intgroup = "condition",
+  returnData = TRUE
+)
+
+ggplot(
+  gene_counts,
+  aes(
+    x = condition,
+    y = count,
+    colour = condition
+  )
+) +
+  geom_point(size = 4) +
+  scale_y_log10() +
+  labs(
+    title = top_gene,
+    x = "Stage",
+    y = "Normalised count"
+  ) +
+  theme_bw()
+```
+
+### Checking the second most significant gene
+
+The second-ranked gene was also visualised.
+
+```{r week9_second_gene}
+second_gene <- res_df$gene_id[2]
+
+gene_counts2 <- plotCounts(
+  dds,
+  gene = second_gene,
+  intgroup = "condition",
+  returnData = TRUE
+)
+
+ggplot(
+  gene_counts2,
+  aes(
+    x = condition,
+    y = count,
+    colour = condition
+  )
+) +
+  geom_point(size = 4) +
+  scale_y_log10() +
+  labs(
+    title = second_gene,
+    x = "Stage",
+    y = "Normalised count"
+  ) +
+  theme_bw()
+```
+
+The second most significant gene was `YCR105W`, which showed strong higher expression in the thin biofilm.
+
+### Saving Week 9 results
+
+The complete results table, significant gene list, fitted DESeq2 dataset and shrunken results were saved for later analysis.
+
+```{r week9_save_results}
+dir.create(
+  "Week9_results",
+  showWarnings = FALSE
+)
+
+write.csv(
+  res_df,
+  "Week9_results/deseq2_all_genes.csv",
+  row.names = FALSE
+)
+
+write.csv(
+  sig_genes,
+  "Week9_results/deseq2_significant_genes.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  dds,
+  "Week9_results/dds.rds"
+)
+
+saveRDS(
+  res_shrunk,
+  "Week9_results/res_shrunk.rds"
+)
+```
+
+The `dds` object was saved because it contains the counts, metadata, design, size factors and dispersion estimates needed for later practicals. 
+
+### Session information
+
+The R session information was recorded at the end of the analysis.
+
+```{r week9_session_info}
+sessionInfo()
+```
+## Week 10: From a gene list to biology
+
+In Week 10, the differential expression results from Week 9 were visualised and interpreted using a volcano plot, a heatmap, gene annotation and Gene Ontology enrichment analysis. The comparison remained thin biofilm (45 days) versus early biofilm (10 days).
+
+### Loading packages and previous results
+
+The Week 9 DESeq2 results and the normalised expression data and sample metadata from Week 8 were loaded.
+
+```{r week10_setup}
+library(ggplot2)
+library(pheatmap)
+
+res_df <- read.csv("Week9_results/deseq2_all_genes.csv")
+log_cpm <- readRDS("Week8_results/log_cpm.rds")
+sample_metadata <- readRDS("Week8_results/sample_metadata.rds")
+
+head(res_df)
+dim(res_df)
+str(res_df)
+levels(sample_metadata$condition)
+```
+
+The differential expression table contained 6095 genes. Both `padj` and `log2FoldChange` were numeric, and the condition levels were `early` followed by `thin`. Therefore, early biofilm was the reference condition and positive log2 fold changes represented higher expression in thin biofilm.
+
+### Preparing the volcano plot
+
+Adjusted p-values were transformed using the negative base-10 logarithm so that more significant genes appeared higher on the plot.
+
+```{r week10_padj_transform}
+res_df$neg_log10_padj <- -log10(res_df$padj)
+
+head(
+  res_df[1:nrow(res_df), c(
+    "gene_id",
+    "log2FoldChange",
+    "padj",
+    "neg_log10_padj"
+  )]
+)
+```
+
+Genes were then classified using an adjusted p-value threshold of 0.05 and an absolute log2 fold-change threshold greater than 1.
+
+```{r week10_gene_status}
+res_df$status <- "Not significant"
+
+res_df$status[
+  res_df$padj < 0.05 &
+  res_df$log2FoldChange > 1
+] <- "Up in thin"
+
+res_df$status[
+  res_df$padj < 0.05 &
+  res_df$log2FoldChange < -1
+] <- "Down in thin"
+
+table(res_df$status)
+```
+
+This identified 443 genes that were up-regulated in thin biofilm and 383 genes that were down-regulated in thin biofilm.
+
+### Volcano plot
+
+```{r week10_volcano}
+p_volcano <- ggplot(
+  res_df,
+  aes(
+    x = log2FoldChange,
+    y = neg_log10_padj,
+    colour = status
+  )
+) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  scale_colour_manual(
+    values = c(
+      "Up in thin" = "#d73027",
+      "Down in thin" = "#4575b4",
+      "Not significant" = "grey70"
+    )
+  ) +
+  geom_vline(
+    xintercept = c(-1, 1),
+    linetype = "dashed",
+    colour = "grey40"
+  ) +
+  geom_hline(
+    yintercept = -log10(0.05),
+    linetype = "dashed",
+    colour = "grey40"
+  ) +
+  labs(
+    title = "Differential expression: thin versus early biofilm",
+    x = "log2 fold change (thin / early)",
+    y = "-log10 adjusted p-value",
+    colour = ""
+  ) +
+  theme_bw()
+
+p_volcano
+```
+
+The volcano plot showed genes with increased expression in thin biofilm on the right and genes with decreased expression in thin biofilm on the left. The dashed vertical and horizontal lines showed the fold-change and adjusted p-value thresholds.
+
+### Labelling the most significant genes
+
+The ten genes with the smallest adjusted p-values were labelled on the volcano plot.
+
+```{r week10_volcano_labels}
+top_order <- order(res_df$padj)
+
+top10 <- res_df[
+  top_order[1:10],
+  1:ncol(res_df)
+]
+
+p_volcano +
+  geom_text(
+    data = top10,
+    aes(label = gene_id),
+    colour = "black",
+    size = 2.5,
+    vjust = -0.8
+  )
+```
+
+The volcano plot was saved at 300 dpi.
+
+```{r week10_save_volcano}
+dir.create("Week10_results", showWarnings = FALSE)
+
+ggsave(
+  "Week10_results/volcano_plot.png",
+  p_volcano,
+  width = 7,
+  height = 6,
+  dpi = 300
+)
+```
+
+### Stricter adjusted p-value threshold
+
+A stricter adjusted p-value threshold of 0.01 was also examined.
+
+```{r week10_strict_threshold}
+res_df$status_strict <- "Not significant"
+
+res_df$status_strict[
+  res_df$padj < 0.01 &
+  res_df$log2FoldChange > 1
+] <- "Up in thin"
+
+res_df$status_strict[
+  res_df$padj < 0.01 &
+  res_df$log2FoldChange < -1
+] <- "Down in thin"
+
+table(res_df$status_strict)
+table(res_df$status)
+```
+
+With the stricter threshold, 391 genes were up-regulated and 343 were down-regulated in thin biofilm. Compared with the 0.05 threshold, 92 genes changed from significant to not significant.
+
+### Preparing the heatmap
+
+Genes meeting the adjusted p-value and fold-change thresholds were selected from the normalised expression matrix.
+
+```{r week10_heatmap_matrix}
+sig_ids <- res_df$gene_id[
+  res_df$padj < 0.05 &
+  abs(res_df$log2FoldChange) > 1
+]
+
+sig_ids <- sig_ids[!is.na(sig_ids)]
+
+length(sig_ids)
+
+heat_matrix <- log_cpm[
+  which(rownames(log_cpm) %in% sig_ids),
+  1:ncol(log_cpm)
+]
+
+dim(heat_matrix)
+```
+
+There were 826 significant genes and six samples in the heatmap matrix.
+
+Sample stage information was prepared for annotation.
+
+```{r week10_heatmap_annotation}
+annotation_col <- data.frame(
+  Stage = sample_metadata$condition
+)
+
+rownames(annotation_col) <- sample_metadata$sample_id
+
+annotation_col
+```
+
+### Heatmap of differentially expressed genes
+
+```{r week10_heatmap}
+pheatmap(
+  heat_matrix,
+  scale = "row",
+  show_rownames = FALSE,
+  annotation_col = annotation_col,
+  main = "Differentially expressed genes: thin vs early"
+)
+```
+
+The three early samples clustered together and the three thin samples clustered together. The heatmap also showed broad groups of genes with opposite expression patterns between the two stages.
+
+Because the data were scaled by row, the colours represent expression relative to each gene's own average across samples rather than absolute expression level.
+
+### Comparing unscaled and row-scaled heatmaps
+
+```{r week10_heatmap_scaling}
+pheatmap(
+  heat_matrix,
+  scale = "none",
+  show_rownames = FALSE,
+  main = "Unscaled"
+)
+
+pheatmap(
+  heat_matrix,
+  scale = "row",
+  show_rownames = FALSE,
+  main = "Row scaled"
+)
+```
+
+The unscaled heatmap was influenced by differences in overall expression level between genes. Row scaling made the expression patterns between early and thin samples easier to see.
+
+### Annotating systematic gene identifiers
+
+The yeast annotation database was used to convert systematic ORF identifiers into common gene names.
+
+```{r week10_annotation_setup}
+library(org.Sc.sgd.db)
+
+columns(org.Sc.sgd.db)
+```
+
+```{r week10_gene_names}
+res_df$gene_name <- mapIds(
+  org.Sc.sgd.db,
+  keys = res_df$gene_id,
+  column = "COMMON",
+  keytype = "ORF",
+  multiVals = "first"
+)
+
+head(
+  res_df[1:nrow(res_df), c(
+    "gene_id",
+    "gene_name",
+    "log2FoldChange",
+    "padj"
+  )],
+  10
+)
+```
+
+Descriptions were also added.
+
+```{r week10_gene_descriptions}
+res_df$description <- mapIds(
+  org.Sc.sgd.db,
+  keys = res_df$gene_id,
+  column = "DESCRIPTION",
+  keytype = "ORF",
+  multiVals = "first"
+)
+
+head(res_df$description, 3)
+```
+
+The five most significant genes were then displayed using both systematic and common names.
+
+```{r week10_top5_genes}
+top5_order <- order(res_df$padj)[1:5]
+
+res_df[
+  top5_order,
+  c(
+    "gene_id",
+    "gene_name",
+    "log2FoldChange"
+  )
+]
+```
+
+The five most significant genes were:
+
+- YGR087C — PDC6
+- YCR105W — ADH7
+- YGR088W — CTT1
+- YHR094C — HXT1
+- YKR097W — PCK1
+
+### Gene Ontology enrichment analysis
+
+The `clusterProfiler` package was used to test whether particular biological processes were over-represented among the significant genes.
+
+The gene universe contained every gene with a valid adjusted p-value that could have been included in the significant gene list.
+
+```{r week10_gene_universe}
+library(clusterProfiler)
+
+gene_universe <- res_df$gene_id[
+  !is.na(res_df$padj)
+]
+
+length(gene_universe)
+length(sig_ids)
+```
+
+The gene universe contained 6095 genes, while the significant gene list contained 826 genes.
+
+### GO enrichment of all significant genes
+
+```{r week10_go_enrichment}
+ego <- enrichGO(
+  gene = sig_ids,
+  universe = gene_universe,
+  OrgDb = org.Sc.sgd.db,
+  keyType = "ORF",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05
+)
+
+head(
+  as.data.frame(ego)[1:nrow(as.data.frame(ego)), c(
+    "Description",
+    "GeneRatio",
+    "BgRatio",
+    "p.adjust"
+  )],
+  10
+)
+```
+
+The most strongly enriched biological processes included generation of precursor metabolites and energy, energy derivation by oxidation of organic compounds, carbohydrate metabolism, organic acid metabolism, ATP metabolism and purine nucleotide metabolism.
+
+### GO enrichment dot plot
+
+```{r week10_go_dotplot}
+p_go <- dotplot(
+  ego,
+  showCategory = 15
+) +
+  labs(
+    title = "Enriched biological processes: thin vs early"
+  )
+
+p_go
+```
+
+```{r week10_save_go_dotplot}
+ggsave(
+  "Week10_results/go_enrichment_dotplot.png",
+  p_go,
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+```
+
+### Enrichment of genes up-regulated in thin biofilm
+
+The up-regulated and down-regulated gene lists were analysed separately while keeping the same gene universe.
+
+```{r week10_go_up}
+up_ids <- res_df$gene_id[
+  res_df$padj < 0.05 &
+  res_df$log2FoldChange > 1
+]
+
+up_ids <- up_ids[!is.na(up_ids)]
+
+length(up_ids)
+
+ego_up <- enrichGO(
+  gene = up_ids,
+  universe = gene_universe,
+  OrgDb = org.Sc.sgd.db,
+  keyType = "ORF",
+  ont = "BP",
+  pvalueCutoff = 0.05
+)
+
+head(
+  as.data.frame(ego_up)$Description,
+  10
+)
+```
+
+There were 443 genes up-regulated in thin biofilm. The enriched biological processes included cytoplasmic translation, cellular respiration, ribosome assembly, ribosome biogenesis, aerobic respiration, translation, energy derivation by oxidation of organic compounds, ATP biosynthesis and proton motive force-driven ATP synthesis.
+
+### Enrichment of genes down-regulated in thin biofilm
+
+```{r week10_go_down}
+down_ids <- res_df$gene_id[
+  res_df$padj < 0.05 &
+  res_df$log2FoldChange < -1
+]
+
+down_ids <- down_ids[!is.na(down_ids)]
+
+length(down_ids)
+
+ego_down <- enrichGO(
+  gene = down_ids,
+  universe = gene_universe,
+  OrgDb = org.Sc.sgd.db,
+  keyType = "ORF",
+  ont = "BP",
+  pvalueCutoff = 0.05
+)
+
+head(
+  as.data.frame(ego_down)$Description,
+  10
+)
+```
+
+There were 383 genes down-regulated in thin biofilm. Enriched processes included monocarboxylic acid metabolism, glucose catabolism, glycolysis, fermentation and nucleotide catabolic processes.
+
+The enrichment patterns differed between the two directions. Genes up-regulated in thin biofilm were enriched for processes related to translation, respiration and ATP production, whereas genes down-regulated in thin biofilm showed enrichment for glycolysis, fermentation and other catabolic processes.
+
+### Saving Week 10 results
+
+```{r week10_save_results}
+write.csv(
+  res_df,
+  "Week10_results/annotated_results.csv",
+  row.names = FALSE
+)
+
+write.csv(
+  as.data.frame(ego),
+  "Week10_results/go_enrichment.csv",
+  row.names = FALSE
+)
+
+saveRDS(
+  heat_matrix,
+  "Week10_results/heat_matrix.rds"
+)
+
+list.files("Week10_results")
+```
+
+The Week 10 result directory contained the annotated differential expression table, GO enrichment table, heatmap matrix and the saved volcano, heatmap and GO enrichment figures.
+
+### Session information
+
+```{r week10_session_info}
+sessionInfo()
+```
